@@ -405,7 +405,10 @@ def cmd_digest(args: argparse.Namespace, out: Output) -> int:
             out.raw(result)
             return 0
         items = result.get("items") or []
-        print(f"Digest: sent={result.get('sent')} reason={result.get('reason')} items={len(items)}")
+        # A real send reports ``count`` (the items were stored as alerts, not
+        # returned), while dry runs and individual sends report ``items``.
+        count = result.get("count", len(items) if items else 0)
+        print(f"Digest: sent={result.get('sent')} reason={result.get('reason')} items={count}")
         if result.get("quarantine"):
             print(f"Quarantine waiting: {result['quarantine']}")
         for item in items:

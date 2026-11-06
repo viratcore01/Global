@@ -78,9 +78,29 @@ IMAP_ENABLED=true
 `assume_opportunity: true` skips the "does this look like an opportunity?"
 classifier when the feed is entirely casting calls.
 
-Google Alerts: create alerts (e.g. `"casting call" Mumbai audition`,
-`"open call" actor India`, `"short film" submission deadline India`), deliver to
-**RSS**, paste the feed URL with `type: google_alerts`.
+Google Alerts: create an alert per query (e.g. `"casting call" (Delhi OR Noida)
+actor`, `auditions actor Delhi`, `"crew required" film Delhi`, `"DOP required"
+Delhi`), set **Deliver to: RSS feed**, then in "My Alerts" copy the RSS link
+(`https://www.google.com/alerts/feeds/<account-id>/<alert-id>`) and add it with
+`type: google_alerts`. One feed URL goes in `url:`, extra alert feeds go under
+`config.urls`, and a single source can carry all of them:
+
+```yaml
+- name: "Google Alerts (my queries)"
+  type: google_alerts
+  url: "https://www.google.com/alerts/feeds/1234567890/9876543210"
+  enabled: true
+  tier: 2
+  poll_interval_minutes: 30
+  assume_opportunity: true
+  config:
+    max_entries: 40
+    urls:
+      - "https://www.google.com/alerts/feeds/1234567890/9876543211"
+```
+
+Nothing is scraped here: Google hands you the feed. Keep the URL private —
+anyone holding it can read that alert's results.
 
 ---
 

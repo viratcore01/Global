@@ -101,9 +101,32 @@ SOURCE_COLUMNS = (
 )
 
 
+# Tables whose rows would lose meaning if a source row disappeared.
+_SOURCE_HISTORY_TABLES = (
+    "raw_documents",
+    "opportunities",
+    "discovery_queue",
+    "hub_candidates",
+    "email_messages",
+    "quarantine",
+)
+
+
+def _source_has_history(db: Database, source_id: int) -> bool:
+    for table in _SOURCE_HISTORY_TABLES:
+        if db.query_one(f"SELECT 1 FROM {table} WHERE source_id = ? LIMIT 1", (source_id,)):
+            return True
+    return False
+
+
 def sync_sources(db: Database, sources: Sequence[SourceConfig]) -> dict[str, int]:
-    """Upsert YAML sources. Existing rows keep their id; health rows are created."""
-    stats = {"inserted": 0, "updated": 0, "unchanged": 0}
+    """Upsert YAML sources, then retire sources that are no longer in the YAML.
+
+    Existing rows keep their id so opportunity history stays attached. A source
+    deleted from ``sources.yaml`` is removed when it never produced anything, or
+    just disabled when it did, so history is never silently detached.
+    """
+    stats = {"inserted": 0, "updated": 0, "unchanged": 0, "disabled": 0, "removed": 0}
     now = iso(now_utc())
     for source in sources:
         existing = db.query_one("SELECT id FROM sources WHERE name = ?", (source.name,))
@@ -144,6 +167,24 @@ def sync_sources(db: Database, sources: Sequence[SourceConfig]) -> dict[str, int
             stats["inserted"] += 1
         _ensure_health(db, source_id, source.poll_interval_minutes)
         _ensure_stats(db, source_id)
+
+    configured = [source.name for source in sources]
+    if configured:
+        placeholders = ",".join("?" for _ in configured)
+        stale = db.query(
+            f"SELECT id, name FROM sources WHERE name NOT IN ({placeholders})",
+            tuple(configured),
+        )
+    else:
+        stale = db.query("SELECT id, name FROM sources")
+    for row in stale:
+        stale_id = int(row["id"])
+        if _source_has_history(db, stale_id):
+            db.execute("UPDATE sources SET enabled = 0, updated_at = ? WHERE id = ?", (now, stale_id))
+            stats["disabled"] += 1
+        else:
+            db.execute("DELETE FROM sources WHERE id = ?", (stale_id,))
+            stats["removed"] += 1
     return stats
 
 

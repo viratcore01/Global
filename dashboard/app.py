@@ -50,8 +50,14 @@ FULL_WIDTH = _full_width()
 # ---------------------------------------------------------------------------
 
 
-@st.cache_resource(show_spinner=False)
-def load_runtime(db_path: str) -> tuple[AppConfig, Database]:
+def open_runtime(db_path: str) -> tuple[AppConfig, Database]:
+    """Open a fresh read-only connection for this render.
+
+    Nothing caches the handle on purpose: while the worker writes from another
+    process a long-lived read-only connection cannot follow the WAL, and a stale
+    handle reported false "fts5: checksum mismatch" integrity errors. Opening
+    and closing per rerun costs about a millisecond and always shows the truth.
+    """
     paths = Paths.discover()
     config = AppConfig.load(paths)
     db = Database(Path(db_path), readonly=True, migrate=False)
@@ -71,7 +77,7 @@ def get_db() -> tuple[AppConfig, Database] | tuple[None, str]:
             "(add `--demo` to load fixtures)."
         )
     try:
-        return load_runtime(str(path))
+        return open_runtime(str(path))
     except (DatabaseError, OSError) as exc:
         return None, f"Could not open the database read-only: {exc}"
 
@@ -443,24 +449,26 @@ def main() -> None:
         st.error(db)
         st.stop()
 
-    with st.sidebar:
-        st.title("🎬 Radar")
-        page_name = st.radio("View", list(PAGES), label_visibility="collapsed")
-        st.divider()
-        st.caption(f"Profile: **{config.profile.name}**\n\n{config.profile.base_city}, {config.profile.base_country}")
-        st.caption(f"DB: `{config.paths.db_path}`")
-        if st.button("Refresh data"):
-            st.cache_resource.clear()
-            st.rerun()
-        st.divider()
-        st.caption("Read-only. Label from the CLI or the ntfy buttons.")
-
     try:
-        PAGES[page_name](config, db)
-    except Exception as exc:  # never crash the whole dashboard for one page
-        st.error(f"{page_name} failed: {exc}")
-        with st.expander("Details"):
-            st.exception(exc)
+        with st.sidebar:
+            st.title("🎬 Radar")
+            page_name = st.radio("View", list(PAGES), label_visibility="collapsed")
+            st.divider()
+            st.caption(f"Profile: **{config.profile.name}**\n\n{config.profile.base_city}, {config.profile.base_country}")
+            st.caption(f"DB: `{config.paths.db_path}`")
+            if st.button("Refresh data"):
+                st.rerun()
+            st.divider()
+            st.caption("Read-only. Label from the CLI or the ntfy buttons.")
+
+        try:
+            PAGES[page_name](config, db)
+        except Exception as exc:  # never crash the whole dashboard for one page
+            st.error(f"{page_name} failed: {exc}")
+            with st.expander("Details"):
+                st.exception(exc)
+    finally:
+        db.close()
 
 
 main()

@@ -246,6 +246,19 @@ against a fresh throwaway home directory. Everything below was run, not assumed.
     updated for the above (threshold variables, SearXNG switch, serve
     behaviour).
 
+Fixes from bringing the project into real use (same day):
+
+- The dashboard cached its read-only SQLite handle for the life of the server.
+  While the worker wrote from another process that handle could not follow the
+  WAL and reported a false `fts5: checksum mismatch` integrity error (and could
+  show stale counts). It now opens, renders and closes a connection per rerun,
+  so the footer reads `integrity ok` and every number is current.
+- `radar digest` printed `items=0` after a real send because the sender reports
+  `count`, not `items`; the CLI now prints the number actually sent.
+- `config/profile.yaml` is personalised (name, acting + crew role types, Delhi /
+  NCR / Jaipur / Chandigarh) and `config/sources.yaml` carries a documented
+  "Google Alerts (my queries)" source that accepts several feed URLs.
+
 Known non-blockers: the Windows scheduled tasks need an elevated shell for the
 `-AtStartup` trigger, Docker expects the host `./data` directory to be writable
 by uid 10001, and `radar backup verify` should still be run monthly as the

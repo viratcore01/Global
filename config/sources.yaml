@@ -47,17 +47,36 @@ sources:
     assume_opportunity: true
     notes: "Any casting newsletter, agency blog or festival feed with an RSS/Atom URL."
 
-  - name: "Google Alerts RSS (replace)"
+  # 1. Open https://www.google.com/alerts (signed in).
+  # 2. Create one alert per line below: "Show options" -> Region: India,
+  #    Language: English (add a second alert per language), Sources: Automatic,
+  #    How often: As-it-happens, How many: All results,
+  #    Deliver to: RSS feed -> Create Alert.
+  # 3. In "My Alerts" click the RSS icon and copy the link
+  #    (https://www.google.com/alerts/feeds/<account-id>/<alert-id>).
+  # 4. Paste the first link into `url:` and any extra ones under config.urls,
+  #    then run: python -m radar sources sync && python -m radar sources enable
+  #    "Google Alerts (my queries)"  (quote the name).
+  #
+  # Suggested queries, one alert each:
+  #   "casting call" (Delhi OR Noida OR Gurugram) actor
+  #   auditions actor (Delhi OR Mumbai) 2027
+  #   "crew required" (Delhi OR Mumbai) film
+  #   "DOP required" OR "director of photography" (Delhi OR Mumbai)
+  #   "short film" casting (Delhi OR Noida)
+  - name: "Google Alerts (my queries)"
     type: google_alerts
-    url: "https://www.google.com/alerts/feeds/REPLACE_WITH_YOUR_FEED_ID"
+    url: "https://www.google.com/alerts/feeds/REPLACE_ACCOUNT_ID/REPLACE_ALERT_ID"
     enabled: false
-    tier: 3
+    tier: 2
     poll_interval_minutes: 30
     assume_opportunity: true
+    config:
+      max_entries: 40
+      urls: []            # extra feed URLs, one per additional alert
     notes: >
-      Create Google Alerts for: "casting call" Mumbai audition; "open call"
-      actor India; "short film" submission deadline; film festival submission
-      India. Deliver to RSS, then paste the feed URL here.
+      Personal Google Alerts on RSS. Nothing is scraped: Google hands you the
+      feed. One alert per query; paste every feed URL here.
 
   - name: "SearXNG sweeps"
     type: searxng

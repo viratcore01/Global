@@ -3,7 +3,7 @@
 # Replace the placeholder values with your real details. Keep it in git.
 # ---------------------------------------------------------------------------
 
-name: "Your Name"
+name: "Virat"
 
 # Roles you can actually play. Age is the character age range, not your exact age.
 age_range: [18, 30]
@@ -12,14 +12,14 @@ travel_radius_km: 300             # set null for unlimited; remote/self-tape byp
 paid_only: false                  # true = never show unpaid/credit-only work
 nudity_max: none                  # none | implied | topless | full
 
-role_types: [lead, supporting, voiceover, web_series, short_film]
+role_types: [lead, supporting, voiceover, web_series, short_film, feature_film, advertisement, theatre, crew]
 showreel_ready: true
 availability: "weekends+evenings"  # free text; used in the profile embedding
 languages: [Hindi, English, Hinglish]
 
 base_city: Delhi
 base_country: India
-preferred_cities: [Delhi, Noida, Gurugram, Mumbai]
+preferred_cities: [Delhi, Noida, Gurugram, Jaipur, Chandigarh]
 
 remote_selftape_ok: true
 selftape_ready: true

@@ -142,3 +142,38 @@ def test_reputation_match(db: Database) -> None:
     assert repo.add_reputation(db, kind="email", value="scam@example.com", reason="user marked scam")
     match = repo.reputation_match(db, [("email", "scam@example.com")])
     assert match and match["kind"] == "email"
+
+
+def test_sync_sources_retires_sources_removed_from_yaml(db: Database) -> None:
+    """A source deleted from sources.yaml must not linger as a live row.
+
+    Sources that never produced anything are removed outright; sources with
+    history are kept (disabled) so opportunity rows do not lose their origin.
+    """
+    from radar.config import SourceConfig
+
+    def source(name: str) -> SourceConfig:
+        return SourceConfig(name=name, type="rss", url=f"https://{name}.example/feed.xml", tier=2, enabled=True)
+
+    kept, thrown_away, with_history = source("kept"), source("never-used"), source("used")
+    repo.sync_sources(db, [kept, thrown_away, with_history])
+    used = repo.get_source_by_name(db, "used")
+    assert used is not None
+    db.insert(
+        "INSERT INTO raw_documents(source_id, url, canonical_url, fetched_at, kind) VALUES (?,?,?,?,?)",
+        (int(used["id"]), "https://used.example/job", "https://used.example/job", "2026-01-01T00:00:00+00:00", "page"),
+    )
+
+    stats = repo.sync_sources(db, [kept])
+    assert stats["removed"] == 1, stats
+    assert stats["disabled"] == 1, stats
+    remaining = {row["name"]: row for row in repo.list_sources(db)}
+    assert set(remaining) == {"kept", "used"}
+    assert not remaining["used"]["enabled"]
+    assert repo.get_source_by_name(db, "never-used") is None
+
+    # Re-adding a source that still has history revives the same row.
+    repo.sync_sources(db, [kept, with_history])
+    revived = repo.get_source_by_name(db, "used")
+    assert revived is not None and int(revived["id"]) == int(used["id"])
+    assert revived["enabled"]
