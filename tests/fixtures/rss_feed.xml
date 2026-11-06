@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Independent Casting India</title>
+    <link>https://casting.example/feed</link>
+    <description>Latest independent casting calls</description>
+    <item>
+      <title>Casting: lead actress for Bengaluru short film</title>
+      <link>https://casting.example/jobs/bengaluru-short-lead</link>
+      <guid>https://casting.example/jobs/bengaluru-short-lead</guid>
+      <pubDate>Mon, 02 Nov 2026 09:00:00 +0530</pubDate>
+      <description>Casting a lead actress, age 20-28, for a Kannada short film shooting in Bengaluru. Deadline 18 December 2026. Pay Rs 10,000 flat. Contact bengalurucasting@example.com.</description>
+    </item>
+    <item>
+      <title>How to build a showreel in 2027</title>
+      <link>https://casting.example/blog/showreel-guide</link>
+      <guid>https://casting.example/blog/showreel-guide</guid>
+      <pubDate>Sun, 01 Nov 2026 08:00:00 +0530</pubDate>
+      <description>A practical guide to editing your first acting showreel.</description>
+    </item>
+  </channel>
+</rss>

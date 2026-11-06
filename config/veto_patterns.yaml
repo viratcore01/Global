@@ -1,0 +1,120 @@
+# ---------------------------------------------------------------------------
+# Deterministic scam / eligibility patterns.
+#
+# These run BEFORE any AI. Each match is logged to veto_log with the rule id so
+# you can audit false positives later. Patterns are Python regular expressions
+# and are case-insensitive by default.
+#
+# IMPORTANT: Festival entry fees are NOT scams. Rules that would catch a
+# festival fee declare `exceptions: [festival]`; the engine also stores the fee
+# as fee_required and shows it on the alert.
+# ---------------------------------------------------------------------------
+
+vetoes:
+  - id: pay_to_apply
+    name: "Pay to apply / audition"
+    pattern: '(?:pay|send|transfer|deposit|remit)\s+(?:rs\.?|inr|₹|\$|usd|gbp|eur)?\s*\d[\d,.]*\s*(?:rs\.?|inr|₹|usd|gbp|eur)?[^\n]{0,70}(?:to\s+apply|for\s+(?:the\s+)?(?:audition|casting|role|application|registration)|registration|application\s+fee|security\s+deposit)'
+    applies_to: [casting, modelling, voiceover, crew, other]
+    exceptions: [festival]
+    reason: "Pay-to-apply is the most common casting scam pattern."
+
+  - id: pay_to_apply_phrase
+    name: "Explicit pay-to-apply phrase"
+    pattern: '\bpay\s+(?:to|for)\s+(?:apply|audition|casting|role|register|registration)\b'
+    applies_to: [casting, modelling, voiceover, crew, other]
+    exceptions: [festival]
+    reason: "Casting should not require an application payment."
+
+  - id: registration_fee
+    name: "Registration or audition fee"
+    pattern: '\b(?:registration|application|audition|casting)\s+(?:fee|charge|charges|amount)\b'
+    applies_to: [casting, modelling, voiceover, crew, other]
+    exceptions: [festival]
+    reason: "Registration/audition fees are a pay-to-apply variant."
+
+  - id: guaranteed_outcome
+    name: "Guaranteed role or work"
+    pattern: '(?:guaranteed|100\s*%|assured)\s+(?:role|work|job|break|debut|selection|film|project)|(?:role|work|job|break|selection)\s+(?:is\s+)?guaranteed|confirmed\s+role\s+(?:after|on)\s+payment'
+    reason: "No legitimate casting director guarantees a role."
+
+  - id: paid_portfolio
+    name: "Paid portfolio shoot"
+    pattern: '(?:portfolio|photoshoot|photo\s+shoot|portfolio\s+shoot)[^\n]{0,100}(?:pay|fee|charge|₹|rs\.?\s*\d)|(?:pay|fee|charge)[^\n]{0,100}(?:portfolio|photoshoot|photo\s+shoot)'
+    applies_to: [casting, modelling, other]
+    reason: "Paid portfolio shoots are a known modelling/casting scam."
+
+  - id: join_group_funnel
+    name: "Join-group funnel"
+    pattern: '(?:join|enter)\s+(?:our|the|this|a)\s+(?:whatsapp|telegram)\s+(?:group|channel)[^\n]{0,90}(?:to\s+(?:apply|get|receive)|for\s+(?:details|updates|roles))|click\s+(?:the\s+)?link\s+to\s+join[^\n]{0,90}(?:group|channel)|only\s+(?:group|channel)\s+members'
+    reason: "Funnels that require joining a group before details are a scam pattern."
+
+  - id: perpetual_buyout
+    name: "Perpetual buyout"
+    pattern: 'perpetual\s+(?:rights|buyout|licen[cs]e)|in\s+perpetuity|all\s+(?:rights|media)\s+(?:worldwide|in\s+perpetuity)|buyout\s+of\s+all\s+rights'
+    applies_to: [casting, modelling, voiceover]
+    reason: "Profile says no perpetual buyout; review only if you change the profile."
+
+  - id: casting_couch
+    name: "Casting couch / sexual coercion"
+    pattern: 'casting\s+couch|sexual\s+favou?rs?|sleep\s+with\s+(?:the\s+)?(?:director|producer)|compromise\s+for\s+(?:the\s+)?role'
+    reason: "Sexual coercion is an immediate block and safety concern."
+
+  - id: upfront_payment
+    name: "Upfront payment or deposit"
+    pattern: '(?:security|caution)\s+deposit|refundable\s+(?:fee|deposit)|pay\s+(?:for\s+)?(?:costume|makeup|make-up|training|membership|subscription)|advance\s+payment\s+(?:required|needed)'
+    applies_to: [casting, modelling, voiceover, other]
+    exceptions: [festival]
+    reason: "Legitimate casting does not ask the performer to pay upfront."
+
+  - id: fake_agency_guarantee
+    name: "Agency guarantees work or visa"
+    pattern: '(?:we|our\s+agency)\s+(?:guarantee|promise)[^\n]{0,70}(?:role|work|job|visa|foreign|abroad|debut)'
+    reason: "Agency guarantees are a classic advance-fee fraud."
+
+  - id: document_harvest
+    name: "ID or bank document harvesting"
+    pattern: 'send\s+(?:your\s+)?(?:aadhaar|aadhar|passport|pan\s+card|bank\s+details|credit\s+card|debit\s+card)[^\n]{0,80}(?:to|for)\s+(?:apply|registration|verification|confirm)'
+    reason: "Never send identity or financial documents early."
+
+penalties:
+  - id: whatsapp_only
+    name: "WhatsApp-only contact"
+    pattern: 'whatsapp\s+only|only\s+whatsapp|contact\s+(?:me\s+)?on\s+whatsapp'
+    weight: 4
+    reason: "Many legitimate Indian calls use WhatsApp, so this is a penalty, not a veto."
+
+  - id: freemail_contact
+    name: "Free email contact"
+    pattern: '\b[a-z0-9._%+\-]+@(?:gmail|yahoo|hotmail|outlook|rediffmail|protonmail|icloud)\.(?:com|in|co\.in)\b'
+    weight: 3
+    reason: "Freemail is common but reduces verifiability."
+
+  - id: urgency_pressure
+    name: "Urgency pressure"
+    pattern: '\b(?:urgent|urgently|immediately|last\s+chance|only\s+today|limited\s+slots?|hurry|apply\s+fast|today\s+only)\b'
+    weight: 3
+    reason: "Pressure language is a scam tactic."
+
+  - id: unrealistic_claims
+    name: "Unrealistic earnings or fame"
+    pattern: '\b(?:earn|make|get)\b[^\n]{0,50}\b(?:lakhs?|crores?|thousands?)\b|\binternational\s+(?:project|production|debut)\b|\bbollywood\s+(?:debut|break)\b'
+    weight: 4
+    reason: "Unrealistic promises are a soft risk signal."
+
+  - id: dm_only
+    name: "DM-only details"
+    pattern: '\b(?:dm|direct\s+message)\s+(?:me|us|only)\b|\bdm\s+for\s+details\b'
+    weight: 2
+    reason: "Details hidden behind DMs are harder to verify."
+
+  - id: no_experience
+    name: "No experience required"
+    pattern: '\bno\s+(?:acting\s+)?experience\s+(?:required|needed)\b'
+    weight: 1
+    reason: "Not inherently a scam, but common in low-quality calls."
+
+  - id: advance_payment
+    name: "Advance payment language"
+    pattern: '\badvance\s+payment\b|\bpay\s+(?:first|before)\b'
+    weight: 5
+    reason: "Advance payment requests are strongly associated with fraud."

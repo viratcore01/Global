@@ -1,0 +1,179 @@
+# ---------------------------------------------------------------------------
+# Source list. This is the real moat: code is replaceable, vetted sources are not.
+#
+# Every source is disabled until you enable it. Replace placeholder URLs with
+# real, hand-vetted sources. Keep the list in git.
+#
+# source types:
+#   email | rss | atom | web | sitemap | telegram | searxng | wayback |
+#   discord | google_alerts | demo
+#
+# fetch: http | curl_cffi | browser | scrapling | auto
+# extractor: auto | jsonld | css | heuristic | text
+# ---------------------------------------------------------------------------
+
+sources:
+  - name: "Email inbox (primary)"
+    type: email
+    enabled: false
+    tier: 1
+    poll_interval_minutes: 5
+    contact: "you@example.com"
+    notes: >
+      Dedicated Gmail account subscribed to agencies, festivals and commissions.
+      Set IMAP_* in .env. The listener uses BODY.PEEK and never marks mail read.
+      The folder/label is configured with IMAP_FOLDER or IMAP_LABEL_FOLDER.
+
+  - name: "Telegram public channel (replace)"
+    type: telegram
+    url: "https://t.me/s/REPLACE_WITH_PUBLIC_CHANNEL"
+    enabled: false
+    tier: 2
+    poll_interval_minutes: 15
+    config:
+      max_pages: 3
+      enqueue_external_links: true
+    notes: >
+      Only public channels with preview enabled. Replace the channel name.
+      Private channels require Telethon and your own account; that is out of
+      scope for the core build.
+
+  - name: "RSS feed (replace)"
+    type: rss
+    url: "https://example.com/feed.xml"
+    enabled: false
+    tier: 2
+    poll_interval_minutes: 30
+    assume_opportunity: true
+    notes: "Any casting newsletter, agency blog or festival feed with an RSS/Atom URL."
+
+  - name: "Google Alerts RSS (replace)"
+    type: google_alerts
+    url: "https://www.google.com/alerts/feeds/REPLACE_WITH_YOUR_FEED_ID"
+    enabled: false
+    tier: 3
+    poll_interval_minutes: 30
+    assume_opportunity: true
+    notes: >
+      Create Google Alerts for: "casting call" Mumbai audition; "open call"
+      actor India; "short film" submission deadline; film festival submission
+      India. Deliver to RSS, then paste the feed URL here.
+
+  - name: "SearXNG sweeps"
+    type: searxng
+    url: "http://127.0.0.1:8888"
+    enabled: false
+    tier: 3
+    poll_interval_minutes: 360
+    config:
+      queries:
+        - 'site:.in "casting call"'
+        - 'site:.in "audition" actor'
+        - 'site:.in "open call" actor'
+        - 'site:.in "short film" submission deadline'
+        - 'site:.ae "casting call"'
+        - 'site:.uk "open casting call"'
+        - 'site:filmfreeway.com "short film"'
+        - '"casting call" Mumbai "film commission"'
+      max_results_per_query: 20
+      language: "en"
+    notes: >
+      Self-host SearXNG, enable the JSON format, and set SEARXNG_URL.
+      Date filtering is done in our code because engine support varies.
+
+  - name: "Sitemap watcher (replace)"
+    type: sitemap
+    url: "https://example.com"
+    enabled: false
+    tier: 2
+    poll_interval_minutes: 360
+    config:
+      include:
+        - "/casting/"
+        - "/audition"
+        - "/open-call"
+        - "/jobs/"
+        - "/festival"
+      exclude:
+        - "/tag/"
+        - "/author/"
+        - "/privacy"
+        - "/login"
+      max_urls_per_run: 200
+    notes: >
+      Reads robots.txt, expands sitemap indexes and .gz files, and only queues
+      new or changed URLs.
+
+  - name: "Web listing page (replace)"
+    type: web
+    url: "https://example.com/casting"
+    enabled: false
+    tier: 2
+    poll_interval_minutes: 60
+    extractor: auto
+    config:
+      # Discovery links from a listing page. If omitted, the page itself is
+      # treated as one opportunity.
+      link_selector: "a[href]"
+      link_include:
+        - "/casting/"
+        - "/audition"
+        - "/open-call"
+      max_links: 50
+    notes: "Use for an agency/board page that lists casting calls."
+
+  - name: "Source-specific CSS extractor (replace)"
+    type: web
+    url: "https://example.com/casting/123"
+    enabled: false
+    tier: 1
+    poll_interval_minutes: 120
+    extractor: css
+    extractor_config:
+      fields:
+        title:
+          selector: "h1"
+        description:
+          selector: "article"
+        deadline:
+          selector: ".deadline, time"
+        city:
+          selector: ".location"
+        contact:
+          selector: ".contact"
+      # Optional: if the page lists several opportunities, set `item`.
+      # item: "article.casting-card"
+    notes: "Add one of these per hand-vetted site once you know its markup."
+
+  - name: "Wayback CDX probe (optional)"
+    type: wayback
+    url: "example.com"
+    enabled: false
+    tier: 3
+    poll_interval_minutes: 1440
+    config:
+      patterns:
+        - "casting"
+        - "open-call"
+        - "audition"
+      max_pages: 3
+    notes: "Low yield. Build it late. One request per 2 seconds, honours Retry-After."
+
+  - name: "Discord read-only bot (optional)"
+    type: discord
+    enabled: false
+    tier: 2
+    poll_interval_minutes: 5
+    config:
+      guild_ids: []
+      channel_ids: []
+    notes: >
+      Only servers where an admin invited the bot. Needs the Message Content
+      intent. Never use a user token.
+
+  - name: "Demo fixtures"
+    type: demo
+    enabled: false
+    tier: 3
+    poll_interval_minutes: 1440
+    notes: "Local fixtures for smoke tests and the seed-demo command. No network."

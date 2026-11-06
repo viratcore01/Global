@@ -1,0 +1,28 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Never bake runtime state or secrets into an image
+.env
+.env.*
+!.env.example
+data
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Dev-only files
+tests
+tmp_test.py
+Global_Cinema_Opportunity_Radar_Final_Report.md
+Global_Cinema_Opportunity_Radar_Official_Links.md

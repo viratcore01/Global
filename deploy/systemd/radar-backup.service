@@ -1,0 +1,25 @@
+# /etc/systemd/system/radar-backup.service
+# Nightly verified snapshot. Runs after the worker's own 03:00 backup as a
+# second safety net if you disable that job; harmless either way.
+
+[Unit]
+Description=Global Cinema Opportunity Radar nightly database snapshot
+Documentation=file:/opt/radar/OPERATIONS.md
+
+[Service]
+Type=oneshot
+User=radar
+Group=radar
+WorkingDirectory=/opt/radar
+Environment=RADAR_HOME=/opt/radar
+Environment=TZ=Asia/Kolkata
+EnvironmentFile=-/opt/radar/.env
+ExecStart=/opt/radar/.venv/bin/python -m radar backup snapshot
+ExecStartPost=/opt/radar/.venv/bin/python -m radar backup verify
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/radar/data

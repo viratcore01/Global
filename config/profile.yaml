@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# Your acting / cinema profile. Every ranking decision is relative to this file.
+# Replace the placeholder values with your real details. Keep it in git.
+# ---------------------------------------------------------------------------
+
+name: "Your Name"
+
+# Roles you can actually play. Age is the character age range, not your exact age.
+age_range: [18, 30]
+gender_presentation: any          # any | male | female | nonbinary
+travel_radius_km: 300             # set null for unlimited; remote/self-tape bypasses this
+paid_only: false                  # true = never show unpaid/credit-only work
+nudity_max: none                  # none | implied | topless | full
+
+role_types: [lead, supporting, voiceover, web_series, short_film]
+showreel_ready: true
+availability: "weekends+evenings"  # free text; used in the profile embedding
+languages: [Hindi, English, Hinglish]
+
+base_city: Delhi
+base_country: India
+preferred_cities: [Delhi, Noida, Gurugram, Mumbai]
+
+remote_selftape_ok: true
+selftape_ready: true
+fee_tolerance: festivals_only     # never | festivals_only | any
+usage_rights: no_perpetual_buyout
+
+# Optional: add coordinates for cities not in radar/cities.py.
+# city_coords:
+#   my-town: [12.34, 56.78, India]
+
+# Scoring weights. They are normalised automatically. After 100 labels the
+# logistic-regression model takes over, but these remain the cold-start model.
+weights:
+  embed: 0.35
+  bm25: 0.25
+  trust: 0.20
+  urgency: 0.10
+  completeness: 0.10
+
+thresholds:
+  instant: 80          # instant ntfy alert
+  digest: 55           # included in the 08:00 digest
+  min_completeness: 0.55
+  exploration_min: 40
+  exploration_max: 75

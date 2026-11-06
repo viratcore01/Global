@@ -1,0 +1,16 @@
+# /etc/systemd/system/radar-backup.timer
+#
+# 03:15 IST, after the worker's own 03:00 snapshot.
+
+[Unit]
+Description=Nightly Global Cinema Opportunity Radar backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Kolkata
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=5min
+Unit=radar-backup.service
+
+[Install]
+WantedBy=timers.target

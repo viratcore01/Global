@@ -1,0 +1,50 @@
+# /etc/systemd/system/radar-worker.service
+#
+# Edit User/Group/WorkingDirectory/ExecStart for your install, then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now radar-worker.service
+#   journalctl -u radar-worker -f
+
+[Unit]
+Description=Global Cinema Opportunity Radar worker
+Documentation=file:/opt/radar/OPERATIONS.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=radar
+Group=radar
+WorkingDirectory=/opt/radar
+Environment=RADAR_HOME=/opt/radar
+Environment=TZ=Asia/Kolkata
+EnvironmentFile=-/opt/radar/.env
+ExecStart=/opt/radar/.venv/bin/python -m radar worker
+Restart=always
+RestartSec=15
+TimeoutStopSec=45
+KillSignal=SIGTERM
+
+# Hardening. The worker needs write access to its own data directory only.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/radar/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallArchitectures=native
+
+# Logs also go to data/logs; journald keeps the crash trail.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=radar-worker
+
+[Install]
+WantedBy=multi-user.target

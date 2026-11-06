@@ -1,0 +1,69 @@
+{
+  "generated_for": "Global Cinema Opportunity Radar demo corpus (fictional, no network)",
+  "items": [
+    {
+      "id": "mumbai-web-series",
+      "kind": "page",
+      "url": "https://demo.example/jobs/mumbai-web-series",
+      "title": "Casting: Supporting Actress for Mumbai Web Series",
+      "published_at": "2026-10-28T09:00:00+05:30",
+      "html": "<!DOCTYPE html><html><head><title>Casting: Supporting Actress for Mumbai Web Series</title><script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"JobPosting\",\"title\":\"Casting: Supporting Actress for Mumbai Web Series\",\"description\":\"Casting a supporting actress, age 22-30, Hindi and English speaking. Shoot in Mumbai from 12 January 2027. Self tape first. Pay is Rs 15,000 per day.\",\"datePosted\":\"2026-10-28\",\"validThrough\":\"2026-12-15\",\"jobLocation\":{\"@type\":\"Place\",\"address\":{\"@type\":\"PostalAddress\",\"addressLocality\":\"Mumbai\",\"addressCountry\":\"India\"}},\"hiringOrganization\":{\"@type\":\"Organization\",\"name\":\"Blue Lantern Pictures\",\"email\":\"casting@bluelantern.example\"},\"baseSalary\":{\"@type\":\"MonetaryAmount\",\"currency\":\"INR\",\"value\":{\"@type\":\"QuantitativeValue\",\"value\":15000,\"unitText\":\"DAY\"}}}</script></head><body><article><h1>Casting: Supporting Actress for Mumbai Web Series</h1><p>Blue Lantern Pictures is casting a supporting role for an eight-episode Hindi web series.</p><ul><li>Role: supporting actress, age 22-30, female</li><li>Languages: Hindi, English</li><li>Location: Mumbai</li><li>Shoot: 12 January 2027 to 20 January 2027</li><li>Pay: Rs 15,000 per day</li><li>Audition: self tape, then an in-person callback</li><li>Deadline: 15 December 2026</li></ul><p>Send your self tape and showreel to casting@bluelantern.example. No nudity required. Travel within Mumbai is covered.</p></article></body></html>"
+    },
+    {
+      "id": "delhi-hinglish",
+      "kind": "page",
+      "url": "https://demo.example/jobs/delhi-hinglish",
+      "title": "Casting call: Hinglish web series in Delhi",
+      "published_at": "2026-11-01T10:00:00+05:30",
+      "text": "Casting call: Hinglish web series shooting in Delhi.\n\nRole: supporting actor, any gender, age 21-29.\nLanguages: Hindi, English, Hinglish.\nShoot: 5 January 2027 to 15 January 2027.\nPay: Rs 8,000 per day.\nLast date to apply: 30 November 2026.\n\nSend a self tape to casting@greenroom.example with your showreel.\nNo nudity. Travel within Delhi is covered."
+    },
+    {
+      "id": "pune-festival",
+      "kind": "page",
+      "url": "https://demo.example/festivals/pune-short-2027",
+      "title": "Pune Short Film Festival 2027 - call for entries",
+      "published_at": "2026-10-01T09:00:00+05:30",
+      "text": "Pune Short Film Festival 2027 - call for entries.\n\nSubmit your short film (under 30 minutes) by 10 January 2027.\nEntry fee: Rs 500 per film.\nThe festival runs 18-21 February 2027 in Pune, India.\nSubmission form: https://punefilmfest.example/submit"
+    },
+    {
+      "id": "mumbai-scam",
+      "kind": "page",
+      "url": "https://demo.example/jobs/music-video-scam",
+      "title": "Female actor required for music video - urgent",
+      "published_at": "2026-11-03T18:00:00+05:30",
+      "text": "Casting call: female actor required for a music video shoot in Mumbai.\n\nAudition registration fee: Rs 999, payable on WhatsApp only.\nGuaranteed role for every candidate who pays. No experience needed.\nContact WhatsApp 9876543210 today, only 3 slots left, hurry!\n\nPay: Rs 1,00,000 for one day."
+    },
+    {
+      "id": "bengaluru-unpaid",
+      "kind": "page",
+      "url": "https://demo.example/jobs/bengaluru-short-unpaid",
+      "title": "Short film in Bengaluru - lead role (unpaid)",
+      "published_at": "2026-10-30T12:00:00+05:30",
+      "text": "Independent short film shooting in Bengaluru in December 2026.\n\nLooking for a lead actor, age 20-28, Kannada and English.\nThis is an unpaid, credit-only project. No pay.\nAudition by self tape. Deadline 18 December 2026.\nContact the director through the form: https://demo.example/apply/bengaluru-short\n\nCrew and travel within Bengaluru are not covered."
+    },
+    {
+      "id": "mumbai-crew-dop",
+      "kind": "page",
+      "url": "https://demo.example/jobs/mumbai-dop-ad-film",
+      "title": "DOP required for Mumbai ad film",
+      "published_at": "2026-11-02T08:00:00+05:30",
+      "text": "Crew call: DOP required for a two-day advertisement film shoot in Mumbai.\n\nDates: 8 December 2026 to 9 December 2026.\nPay: Rs 20,000 flat for the shoot.\nEquipment is provided. Send your portfolio to crew@demo.example.\nDeadline: 25 November 2026."
+    },
+    {
+      "id": "hindi-casting",
+      "kind": "page",
+      "url": "https://demo.example/jobs/hindi-casting",
+      "title": "कास्टिंग: हिंदी वेब सीरीज़ के लिए अभिनेत्री",
+      "published_at": "2026-11-04T09:00:00+05:30",
+      "text": "कास्टिंग कॉल: हिंदी वेब सीरीज़ के लिए अभिनेत्री चाहिए।\n\nउम्र: 22 से 30 वर्ष, महिला।\nभाषा: हिंदी, अंग्रेज़ी।\nशूटिंग: जयपुर, 10 जनवरी 2027 से 18 जनवरी 2027।\nमानदेय: ₹12,000 प्रति दिन।\nआवेदन की अंतिम तिथि 20 दिसंबर 2026।\n\nसेल्फ टेप भेजें: casting@jaipurdemo.example\nनग्नता आवश्यक नहीं है।"
+    },
+    {
+      "id": "blog-not-a-job",
+      "kind": "page",
+      "url": "https://demo.example/blog/showreel-tips",
+      "title": "Five ways to improve your acting showreel",
+      "published_at": "2026-10-20T09:00:00+05:30",
+      "text": "Five ways to improve your acting showreel.\n\nA showreel is a short compilation of your best on-screen work. Keep it under two minutes, lead with your strongest scene, and make sure the sound is clean. This article is general advice for performers, not a job posting."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+# Litestream continuous replication for the radar SQLite database.
+#
+# Why: nightly snapshots lose up to 24h and live on the same disk. Litestream
+# streams the WAL to object storage so a dead machine loses seconds, not a day.
+#
+# Install Litestream, export LITESTREAM_REPLICA_URL (see .env), then:
+#   litestream restore -config deploy/litestream.yml -o data/radar-restored.db
+#   litestream replicate -config deploy/litestream.yml
+#
+# Supported URL forms:
+#   s3://bucket-name/radar                     (AWS S3, or S3-compatible endpoint)
+#   s3://bucket-name/radar?endpoint=...&region=...
+#   gs://bucket-name/radar                     (Google Cloud Storage)
+#   abs://account.blob.core.windows.net/container/radar
+#   sftp://user@host:22/path/radar
+#   file:///mnt/backup/radar                   (mounted NAS; still better than local)
+#
+# Run this as its own service, not inside the worker process. Litestream is not
+# bundled in the Docker image (it ships code only), so run it on the host or in
+# its own container. Change `path` to match your install:
+#   systemd/docs layout : /opt/radar/data/radar.db
+#   docker compose      : the host path of ./data/radar.db
+#   this checkout       : data/radar.db
+
+dbs:
+  - path: /opt/radar/data/radar.db
+    replicas:
+      - url: ${LITESTREAM_REPLICA_URL}
+        # Keep 30 days of point-in-time history; snapshots beyond this are pruned.
+        retention: 720h
+        snapshot-interval: 24h
+        sync-interval: 10s
+        # Verify the replica after each snapshot instead of trusting it blindly.
+        verify-compaction: true

@@ -1,0 +1,95 @@
+# Global Cinema Opportunity Radar
+#
+#   docker compose build
+#   docker compose run --rm radar init          # first run only
+#   docker compose up -d worker
+#   docker compose --profile dashboard up -d dashboard
+#
+# Config and data live on the host. Keep `data/` out of git: it holds the
+# database, backups and the reply signing secret.
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: radar:1.0
+    container_name: radar-worker
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RADAR_HOME: /app
+      TZ: Asia/Kolkata
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    # One writer only. Do not scale this service.
+    command: ["worker"]
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # One-off CLI commands: docker compose run --rm radar doctor
+  radar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: radar:1.0
+    profiles: ["cli"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RADAR_HOME: /app
+      TZ: Asia/Kolkata
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_EXTRAS: "1"
+    image: radar:1.0-extras
+    profiles: ["dashboard"]
+    container_name: radar-dashboard
+    restart: unless-stopped
+    depends_on:
+      - worker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RADAR_HOME: /app
+      TZ: Asia/Kolkata
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+    ports:
+      # Localhost only. Put a VPN or authenticating proxy in front if remote.
+      - "127.0.0.1:8501:8501"
+    command:
+      - serve
+      - --address
+      - 0.0.0.0
+      - --port
+      - "8501"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

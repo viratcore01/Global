@@ -1,0 +1,17 @@
+# /etc/systemd/system/radar-digest.timer
+#
+# 08:00 IST. On systemd < 240, drop the timezone suffix and set
+# Environment=TZ=Asia/Kolkata in the service (already set there).
+
+[Unit]
+Description=Send the Global Cinema Opportunity Radar digest at 08:00 IST
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Asia/Kolkata
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1min
+Unit=radar-digest.service
+
+[Install]
+WantedBy=timers.target

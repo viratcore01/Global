@@ -1,0 +1,19 @@
+# Core runtime dependencies for the Global Cinema Opportunity Radar.
+# Python 3.10+ recommended (tested on 3.15 on Windows and 3.12 target in Docker).
+
+httpx>=0.27,<1
+pydantic>=2.7,<3
+ruamel.yaml>=0.18
+python-dotenv>=1.0
+selectolax>=0.3.21
+trafilatura>=2.0
+extruct>=0.18
+datasketch>=1.6
+feedparser>=6.0
+dateparser>=1.2
+imap-tools>=1.10
+rapidfuzz>=3.0
+tzdata>=2024.1
+
+# Optional but recommended (see requirements-optional.txt)
+# curl_cffi, playwright, streamlit, pytesseract/Pillow, sentence-transformers

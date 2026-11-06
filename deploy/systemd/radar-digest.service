@@ -1,0 +1,27 @@
+# /etc/systemd/system/radar-digest.service
+# Oneshot digest sender, scheduled by radar-digest.timer.
+# The worker also runs the digest at 08:00 IST; keep only one path active to
+# avoid a double send (the alerts dedupe key makes it harmless, but noisy).
+
+[Unit]
+Description=Global Cinema Opportunity Radar daily digest
+Documentation=file:/opt/radar/OPERATIONS.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=radar
+Group=radar
+WorkingDirectory=/opt/radar
+Environment=RADAR_HOME=/opt/radar
+Environment=TZ=Asia/Kolkata
+EnvironmentFile=-/opt/radar/.env
+ExecStart=/opt/radar/.venv/bin/python -m radar digest
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/radar/data
