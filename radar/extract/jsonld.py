@@ -196,6 +196,11 @@ def _apply_salary(salary: Any, result: JsonLdResult) -> None:
             amount = float(value)
         except (TypeError, ValueError):
             amount = None
+    # Template-generated JobPosting markup often carries a placeholder amount
+    # ("value": 1) with a default USD currency.  Real performer pay is never
+    # under 100 in any currency these boards use, so small figures are dropped.
+    if amount is not None and amount < 100:
+        amount = None
     if amount is not None:
         result.fields.setdefault("pay_amount", amount)
         # Keep the quote compact ("15000", not "15000.0") so it appears
@@ -204,10 +209,14 @@ def _apply_salary(salary: Any, result: JsonLdResult) -> None:
     currency = salary.get("currency")
     if currency:
         result.fields.setdefault("currency", str(currency))
-    if "day" in unit or "hour" in unit:
-        result.fields.setdefault("comp_type", "day_rate")
-    elif amount is not None:
-        result.fields.setdefault("comp_type", "flat")
+    # Platforms often publish an empty MonetaryAmount with unitText "DAY".
+    # Without a figure that says nothing about pay, so it must not create a
+    # compensation claim that overrides the page's own "Payment terms".
+    if amount is not None:
+        if "day" in unit:
+            result.fields.setdefault("comp_type", "day_rate")
+        else:
+            result.fields.setdefault("comp_type", "flat")
 
 
 def _location(location: Any) -> tuple[str | None, str | None]:

@@ -53,25 +53,27 @@ sources:
 - name: Deadline Hollywood (Casting)
   type: rss
   url: https://deadline.com/category/casting/feed/
-  enabled: true
+  enabled: false
   tier: 2
   poll_interval_minutes: 60
-  assume_opportunity: true
-  notes: Industry casting announcements and official production casting notices.
+  notes: >
+    Industry trade coverage of casting, not casting calls. Disabled on purpose:
+    it produces news headlines that no actor can apply to.
 - name: "Google Alerts (my queries)"
   type: google_alerts
   url: "https://www.google.com/alerts/feeds/17602279216790391852/12339653652275347045"
   enabled: true
   tier: 2
   poll_interval_minutes: 30
-  assume_opportunity: true
   config:
     max_entries: 40
     urls:
     - "https://www.google.com/alerts/feeds/17602279216790391852/15555007301314017485"
   notes: >
     Personal Google Alerts on RSS. Nothing is scraped: Google hands you the
-    feed. One alert per query; paste every feed URL here.
+    feed. One alert per query; paste every feed URL here. Alerts mix news with
+    real calls, so each result must pass the casting-call gate before it is
+    stored as an opportunity.
 
 - name: "SearXNG sweeps"
   type: searxng
@@ -114,6 +116,31 @@ sources:
     max_urls_per_run: 200
   notes: Watches the site sitemap for newly published audition and casting 
     posts.
+- name: Acmodasi Auditions
+  type: web
+  url: https://www.acmodasi.in/auditions
+  enabled: true
+  tier: 2
+  poll_interval_minutes: 180
+  extractor: css
+  assume_opportunity: true
+  extractor_config:
+    item: "div.col-xl-4"
+    max_items: 40
+    fields:
+      title:
+        selector: ".casting_card_title a"
+      description:
+        selector: ".casting_card_cat"
+      location:
+        selector: ".user_card_footer_box .col-4"
+    link:
+      selector: ".casting_card_title a"
+      attr: href
+  notes: >
+    Board of active Indian casting calls and auditions. One opportunity is
+    extracted per card; the card copy is scored, so page-level pay or dates
+    never leak into unrelated posts.
 - name: "Web listing page (replace)"
   type: web
   url: "https://example.com/casting"

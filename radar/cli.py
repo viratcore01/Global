@@ -516,6 +516,21 @@ def cmd_show(args: argparse.Namespace, out: Output) -> int:
         return 0
 
 
+def cmd_brief(args: argparse.Namespace, out: Output) -> int:
+    with Runtime() as rt:
+        from .brief import brief_for_id
+
+        brief = brief_for_id(rt.db, rt.config.profile, args.id)
+        if brief is None:
+            out.raw({"ok": False, "error": f"opportunity {args.id} not found"})
+            return 1
+        if out.as_json:
+            out.raw(brief.to_dict())
+            return 0
+        print(brief.render())
+        return 0
+
+
 def cmd_label(args: argparse.Namespace, out: Output) -> int:
     action = args.action.lower()
     action = LABEL_ALIASES.get(action, action)
@@ -913,6 +928,11 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("id", type=int)
     _add_common(show)
     show.set_defaults(func=cmd_show)
+
+    brief = sub.add_parser("brief", help="turn an opportunity into an application checklist")
+    brief.add_argument("id", type=int)
+    _add_common(brief)
+    brief.set_defaults(func=cmd_brief)
 
     label = sub.add_parser("label", help="record apply / ignore / scam / replied / booked / archive / undo")
     label.add_argument("id", type=int)

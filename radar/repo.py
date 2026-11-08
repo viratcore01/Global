@@ -530,10 +530,26 @@ def recent_raw_for_url(db: Database, canonical_url: str, limit: int = 5) -> list
     )
 
 
+def delete_raw_document(db: Database, raw_id: int) -> None:
+    """Drop a raw document that produced no opportunity (news pages).
+
+    Only safe once the document has no stored opportunity; the tracked database
+    is committed by the cloud runner, so keeping rejected news page bodies
+    would bloat it by megabytes per scan.
+    """
+    if not raw_id:
+        return
+    db.execute("DELETE FROM raw_documents WHERE id=?", (int(raw_id),))
+
+
 # ---------------------------------------------------------------------------
 # Clusters / opportunities
 # ---------------------------------------------------------------------------
 
+
+# Statuses a person set by acting on the lead.  Re-extraction is not allowed
+# to clear these.
+HUMAN_STATUSES = {"applied", "replied", "booked", "ignored", "archived", "scam"}
 
 OPPORTUNITY_COLUMNS = (
     "canonical_url",
@@ -652,7 +668,19 @@ def upsert_opportunity(db: Database, data: dict[str, Any], *, update_fields: boo
     existing = db.query_one("SELECT * FROM opportunities WHERE canonical_hash = ?", (canonical_hash_value,))
     if existing:
         if update_fields:
-            values = _opportunity_values({**data, "created_at": existing["created_at"]}, now)
+            # Re-extraction may report a fresh system status ("expired" for a
+            # ended listing) but must never roll back what the user decided to
+            # do with the lead.
+            if existing["status"] in HUMAN_STATUSES:
+                data = {**data, "status": existing["status"]}
+            values = _opportunity_values(
+                {
+                    **data,
+                    "created_at": existing["created_at"],
+                    "first_seen_at": existing["first_seen_at"],
+                },
+                now,
+            )
             assignments = ", ".join(f"{col}=?" for col in OPPORTUNITY_COLUMNS)
             db.execute(
                 f"UPDATE opportunities SET {assignments} WHERE id=?",

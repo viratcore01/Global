@@ -22,6 +22,7 @@ import pandas as pd
 import streamlit as st
 
 from radar import repo
+from radar.brief import build_brief
 from radar.config import AppConfig, Paths
 from radar.db import Database, DatabaseError
 from radar.health import snapshot, source_warnings
@@ -291,6 +292,16 @@ def page_detail(config: AppConfig, db: Database) -> None:
         st.write(f"**Fee required:** {'yes' if opportunity.get('fee_required') else 'no'}")
         st.write(f"**Nudity:** {opportunity.get('nudity') or 'unknown'}")
         st.write(f"**Risk:** {risk_badge(opportunity.get('risk_flags'))}")
+
+    brief = build_brief(opportunity, config.profile)
+    st.subheader("Apply plan")
+    st.write(f"**Next action:** {brief.next_action}")
+    if brief.blockers:
+        for blocker in brief.blockers:
+            st.warning(blocker, icon="⚠️")
+    if brief.checklist:
+        for step in brief.checklist:
+            st.checkbox(step, key=f"brief-{opportunity['id']}-{abs(hash(step))}")
 
     st.subheader("Evidence")
     evidence = opportunity.get("evidence") or {}

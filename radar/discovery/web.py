@@ -37,6 +37,35 @@ def discover_web(ctx: DiscoveryContext) -> DiscoveryResult:
     selector = cfg.get("link_selector")
     discover_links = bool(cfg.get("discover_links")) or bool(selector)
     if not discover_links:
+        # Without a configured selector, look for a repeated-card casting board
+        # and queue each card's detail page.  A single opportunity page still
+        # falls through to "ingest this page".
+        from ..extract.board import detect_board_items
+
+        if cfg.get("auto_links", True):
+            board = detect_board_items(
+                response.text or "",
+                base_url,
+                max_items=int(cfg.get("max_links") or 40),
+            )
+            if len(board) >= 3:
+                # Ended cards keep their place on the board; fetching them costs
+                # a request and never yields a live lead.
+                live = [item for item in board if not item.closed]
+                if len(live) >= 3:
+                    board = live
+                return DiscoveryResult(
+                    items=[
+                        DiscoveryItem(
+                            url=item.url,
+                            kind="page",
+                            payload={"title": item.title, "detail": True, "closed": item.closed},
+                        )
+                        for item in board
+                    ],
+                    http_status=response.status,
+                    notes={"auto_links": len(board)},
+                )
         return DiscoveryResult(items=[DiscoveryItem(url=base_url, kind="page")], http_status=response.status)
 
     from ..htmlutil import parse_html

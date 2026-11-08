@@ -15,7 +15,7 @@ from .dedup.minhash import signature_for_text
 from .extract.pipeline import ExtractionEngine, ExtractionResult
 from .fetch.http import FetchResult, HttpFetcher
 from .models import OpportunityRecord
-from .normalize import canonicalize_url
+from .normalize import canonicalize_url, is_news_url
 from .score.ranker import Ranker, ScoreResult
 from .util import (
     backoff_delay,
@@ -31,6 +31,29 @@ log = get_logger(__name__)
 
 INTERNAL_SCHEMES = ("email://", "fixture://", "discord://", "telegram://", "rss://", "imap://")
 COMPRESS_THRESHOLD = 8192
+
+
+def _richness(data: dict[str, Any]) -> int:
+    """How many useful facts a record actually carries.
+
+    Used to decide whether a fresh extraction (usually a detail page) is worth
+    replacing a thinner one (usually a board card).
+    """
+    score = 0
+    for key in ("deadline", "contact_value", "city", "age_min", "age_max"):
+        if data.get(key) not in (None, "", []):
+            score += 1
+    if str(data.get("comp_type") or "unknown") != "unknown":
+        score += 1
+    if str(data.get("audition_format") or "unknown") != "unknown":
+        score += 1
+    for key in ("languages", "role_types", "shoot_window"):
+        if data.get(key):
+            score += 1
+    description = str(data.get("description") or "")
+    if len(description) >= 200:
+        score += 1
+    return score
 
 
 @dataclass
@@ -185,6 +208,10 @@ class Pipeline:
             "title": payload.get("title"),
             "published_at": payload.get("published_at"),
             "author": payload.get("author"),
+            # A card link discovered on a board is a detail page: its own copy
+            # is the opportunity, so the source's listing selectors must not be
+            # applied to it.
+            "detail": bool(payload.get("detail")),
             **(payload.get("meta") or {}),
         }
         raw_id = repo.insert_raw_document(
@@ -340,6 +367,18 @@ class Pipeline:
         extraction: ExtractionResult = self.engine.extract(raw, source, allow_llm=self.allow_llm)
         url = str(raw.get("canonical_url") or raw.get("url") or "")
         if extraction.skipped:
+            # News pages that merely mention casting are kept out of the
+            # opportunity table by design.  Their raw bodies are dropped too:
+            # the cloud runner commits this database, so retaining rejected
+            # newspaper pages would bloat the repo on every scan.
+            if is_news_url(url):
+                repo.delete_raw_document(self.db, int(raw.get("id") or 0))
+                return IngestionResult(
+                    url=url,
+                    skipped=True,
+                    reason=extraction.reason or "no opportunity signals",
+                    http_status=http_status,
+                )
             return IngestionResult(
                 url=url,
                 raw_document_id=raw.get("id"),
@@ -377,7 +416,13 @@ class Pipeline:
             data["source_id"] = source.get("id") or data.get("source_id")
             data["source_type"] = source.get("type") or data.get("source_type") or "web"
             data["trust_tier"] = int(source.get("tier") or data.get("trust_tier") or 3)
-            opp_id, is_new = repo.upsert_opportunity(self.db, data, update_fields=update_fields)
+            # A board card is often thinner than its detail page.  Let a richer
+            # extraction fill in the stored record instead of being discarded.
+            existing_row = repo.get_opportunity_by_url(self.db, canonical_url)
+            enrich = bool(existing_row) and _richness(data) > _richness(existing_row)
+            opp_id, is_new = repo.upsert_opportunity(
+                self.db, data, update_fields=update_fields or enrich
+            )
             existing = repo.get_opportunity(self.db, opp_id)
             cluster = {"reason": "existing"}
             if is_new or not existing.get("cluster_id"):

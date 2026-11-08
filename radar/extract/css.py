@@ -66,6 +66,10 @@ def extract_css(html: str, config: dict[str, Any], *, base_url: str | None = Non
                 if link:
                     item["_url"] = link
             if item:
+                from .badges import node_closed
+
+                if node_closed(node):
+                    item["_closed"] = True
                 result.items.append(item)
             for key, value in evidence.items():
                 result.evidence.setdefault(key, value)

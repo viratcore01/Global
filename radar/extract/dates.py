@@ -282,11 +282,13 @@ def extract_deadline(text: str, *, base: datetime | None = None) -> DeadlineHit 
         return best
 
     # No explicit keyword: look for a date near "apply"/"send"/"submit".
+    # Yearless dates ("22 Oct" in a post timestamp) are too ambiguous here;
+    # only a date that states its year can stand in for a missing keyword.
     for anchor in re.finditer(r"\b(apply|send|submit|email|whatsapp|contact)\b", text, re.IGNORECASE):
         start = max(0, anchor.start() - 40)
         end = min(len(text), anchor.end() + 120)
         window = text[start:end]
-        absolute = _first_absolute(window, base)
+        absolute = _first_absolute(window, base, allow_yearless=False)
         if absolute and absolute >= base.astimezone(IST) - timedelta(days=1):
             return DeadlineHit(
                 absolute,
@@ -297,10 +299,13 @@ def extract_deadline(text: str, *, base: datetime | None = None) -> DeadlineHit 
     return None
 
 
-def _first_absolute(text: str, base: datetime) -> datetime | None:
+def _first_absolute(text: str, base: datetime, *, allow_yearless: bool = True) -> datetime | None:
     # Try each regex in order of reliability; return the earliest sensible date.
     candidates: list[datetime] = []
-    for regex in (DATE_ISO, DATE_DMY, DATE_MDY, DATE_NUMERIC, DATE_DAY_MONTH, DATE_MONTH_DAY):
+    patterns = (DATE_ISO, DATE_DMY, DATE_MDY)
+    if allow_yearless:
+        patterns = (*patterns, DATE_NUMERIC, DATE_DAY_MONTH, DATE_MONTH_DAY)
+    for regex in patterns:
         for match in regex.finditer(text):
             dt = parse_absolute_date(match.group(0), base=base)
             if dt and dt >= base.astimezone(IST) - timedelta(days=365):

@@ -199,6 +199,187 @@ def test_text_email_fixture(config) -> None:
     assert record.opportunity_type == "casting"
 
 
+def test_news_headline_is_not_an_opportunity() -> None:
+    text = (
+        "Robert Pattinson and Nicholas Hoult join James Bond casting rumors, audition to "
+        "play the new 007. Both actors reportedly screen tested for the role, according to "
+        "Variety. The race to find the next James Bond has been competitive."
+    )
+    result = extract_heuristics(
+        text,
+        title_hint="Robert Pattinson and Nicholas Hoult join James Bond casting rumors",
+        url="https://www.aol.com/articles/robert-pattinson-nicholas-hoult-join.html",
+        base=BASE,
+    )
+    assert not result.is_opportunity
+    assert result.signals["looks_like_news"] is True
+
+
+def test_finished_open_call_is_not_an_opportunity() -> None:
+    text = (
+        "ABEMA Reveals Three Finalists for 'PROJECT PRISMation' Open Call. The Japanese "
+        "streaming service announced the three finalists from its first open call for "
+        "independent animators on Friday."
+    )
+    result = extract_heuristics(
+        text,
+        title_hint="ABEMA Reveals Three Finalists for 'PROJECT PRISMation' Open Call",
+        url="https://www.animenewsnetwork.com/news/2026-11-07/abema-selects-open-call-finalists",
+        base=BASE,
+    )
+    assert not result.is_opportunity
+
+
+def test_newspaper_article_with_journalist_email_is_news() -> None:
+    text = (
+        "Fans crowd the EpiCentre for events around NBA All-Star Weekend in Charlotte. "
+        "Applicants attended an open casting call for a reality show in 2015. "
+        "Contact the reporter at dlaird@charlotteobserver.com."
+    )
+    result = extract_heuristics(
+        text,
+        title_hint="Remember these moments at Charlotte's EpiCentre?",
+        url="https://www.charlotteobserver.com/news/business/article317945078.html",
+        base=BASE,
+    )
+    assert not result.is_opportunity
+
+
+def test_real_casting_call_passes_without_assume_opportunity() -> None:
+    text = (
+        "Casting call: female actor required for a music video shoot in Mumbai. "
+        "Age 20-28. Pay: Rs 12,000 per day. Deadline: 20 December 2026. "
+        "Send your self tape to casting@example.com."
+    )
+    result = extract_heuristics(text, title_hint="Casting call", base=BASE)
+    assert result.is_opportunity
+    assert result.fields["pay_amount"] == 12000.0
+
+
+def _board_html() -> str:
+    return """
+    <html><body>
+      <header><a href="/about">About us</a></header>
+      <p>Site-wide sponsor message. Deadline: 1 January 2027. Pay: Rs 90,000 per day.</p>
+      <div class="col-xl-4">
+        <div class="row casting_card">
+          <div class="casting_card_title"><a href="/auditions/c/1">Lead actor for Mumbai short</a></div>
+          <div class="casting_card_cat">Casting for a short film. Role: lead, age 22-30.</div>
+        </div>
+        <div class="user_card_footer_box"><div class="col-4">Mumbai</div></div>
+      </div>
+      <div class="col-xl-4">
+        <div class="row casting_card">
+          <div class="casting_card_title"><a href="/auditions/c/2">Supporting actress for Delhi series</a></div>
+          <div class="casting_card_cat">We are casting a supporting role, female, age 25-32.</div>
+        </div>
+        <div class="user_card_footer_box"><div class="col-4">Delhi</div></div>
+      </div>
+      <div class="col-xl-4">
+        <div class="row casting_card">
+          <div class="casting_card_title"><a href="/auditions/c/3">DOP required for Pune ad film</a></div>
+          <div class="casting_card_cat">Crew call: DOP required for a two-day ad shoot. Paid.</div>
+        </div>
+        <div class="user_card_footer_box"><div class="col-4">Pune</div></div>
+      </div>
+    </body></html>
+    """
+
+
+def test_board_page_is_split_automatically(config) -> None:
+    result = extract_html(config, _board_html(), url="https://board.example/auditions")
+    assert result.method == "board"
+    titles = {record.title for record in result.records}
+    assert titles == {
+        "Lead actor for Mumbai short",
+        "Supporting actress for Delhi series",
+        "DOP required for Pune ad film",
+    }
+    assert {record.city for record in result.records} == {"Mumbai", "Delhi", "Pune"}
+    # Page chrome must not leak into individual cards.
+    assert all(record.deadline is None for record in result.records)
+    assert all(record.pay_amount is None for record in result.records)
+    assert {record.canonical_url for record in result.records} == {
+        "https://board.example/auditions/c/1",
+        "https://board.example/auditions/c/2",
+        "https://board.example/auditions/c/3",
+    }
+
+
+def test_link_grid_without_casting_language_is_not_a_board(config) -> None:
+    html = """
+    <html><body>
+      <div class="card"><a href="/blog/1">Ten acting tips for beginners</a><p>Advice for new actors.</p></div>
+      <div class="card"><a href="/blog/2">How to build a showreel</a><p>A practical guide.</p></div>
+      <div class="card"><a href="/blog/3">Festival etiquette</a><p>How to behave at a festival.</p></div>
+    </body></html>
+    """
+    result = extract_html(config, html, url="https://board.example/blog")
+    assert result.records == []
+
+
+def test_css_listing_extracts_each_card_without_page_leaks(config) -> None:
+    html = """
+    <html><body>
+      <p>Deadline: 1 January 2027. Pay: Rs 50,000 per day for the page sponsor.</p>
+      <div class="col-xl-4">
+        <div class="row casting_card">
+          <div class="casting_card_title"><a href="/j/1">Lead actor for Mumbai short</a></div>
+          <div class="casting_card_cat">Casting for a short film. Role: lead, age 22-30.</div>
+        </div>
+        <div class="user_card_footer_box"><div class="col-4">Mumbai</div></div>
+      </div>
+      <div class="col-xl-4">
+        <div class="row casting_card">
+          <div class="casting_card_title"><a href="/j/2">Supporting actress for Delhi series</a></div>
+          <div class="casting_card_cat">We are casting a supporting role, female, age 25-32.</div>
+        </div>
+        <div class="user_card_footer_box"><div class="col-4">Delhi</div></div>
+      </div>
+    </body></html>
+    """
+    source = {
+        "type": "web",
+        "tier": 2,
+        "assume_opportunity": True,
+        "extractor": "css",
+        "extractor_config": {
+            "item": "div.col-xl-4",
+            "fields": {
+                "title": {"selector": ".casting_card_title a"},
+                "description": {"selector": ".casting_card_cat"},
+                "location": {"selector": ".user_card_footer_box .col-4"},
+            },
+            "link": {"selector": ".casting_card_title a", "attr": "href"},
+        },
+    }
+    raw = {
+        "id": 9,
+        "canonical_url": "https://casting.example/auditions",
+        "body_text": html,
+        "content_type": "text/html",
+        "meta": {},
+        "kind": "page",
+        "source_id": 4,
+    }
+    result = engine(config).extract(raw, source)
+    assert len(result.records) == 2
+    assert {record.city for record in result.records} == {"Mumbai", "Delhi"}
+    # Page-level deadline/pay must not be attached to individual cards.
+    assert all(record.deadline is None for record in result.records)
+    assert all(record.pay_amount is None for record in result.records)
+
+
+def test_age_range_is_not_read_as_pay() -> None:
+    text = (
+        "Casting for social networks. Fee. Looking for actresses age 24-45 for a video "
+        "against domestic violence. No location required, remote participation. "
+        "Email sofy.s01@outlook.com for details."
+    )
+    fields = extract_heuristics(text, title_hint="Casting for social networks", base=BASE, assume_opportunity=True).fields
+    assert fields.get("pay_amount") in (None, 0.0)
+
+
 @pytest.mark.parametrize("fixture", ["festival.html", "jsonld_casting.html", "css_listing.html"])
 def test_fixture_pages_never_raise(config, fixture: str) -> None:
     result = extract_html(config, read_fixture(fixture), url=f"https://example.com/{fixture}")

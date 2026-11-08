@@ -13,6 +13,7 @@ from typing import Any
 
 from ..cities import find_city
 from ..normalize import (
+    DIRECT_CALL_RE,
     detect_languages,
     evidence_text,
     extract_emails,
@@ -22,10 +23,13 @@ from ..normalize import (
     looks_like_casting,
     looks_like_crew,
     looks_like_festival,
+    looks_like_news_article,
     normalize_text,
 )
 from ..util import normalize_ws, now_ist, truncate
 from .dates import DeadlineHit, extract_deadline, extract_shoot_window
+from .facts import extract_facts
+from .pay import classify_compensation
 
 CURRENCY_MAP = {
     "₹": "INR",
@@ -152,11 +156,15 @@ def extract_heuristics(
     is_opp = assume_opportunity or _is_opportunity(clean, opportunity_type)
     if is_probably_not_opportunity(clean) and not assume_opportunity:
         is_opp = False
+    looks_like_news = looks_like_news_article(clean, url)
+    if looks_like_news and not assume_opportunity:
+        is_opp = False
     result.signals["is_opportunity"] = is_opp
     result.signals["opportunity_type"] = opportunity_type
     result.signals["looks_like_casting"] = looks_like_casting(clean)
     result.signals["looks_like_festival"] = looks_like_festival(clean)
     result.signals["looks_like_crew"] = looks_like_crew(clean)
+    result.signals["looks_like_news"] = looks_like_news
 
     if not is_opp:
         fields["description"] = truncate(clean, 4000)
@@ -234,6 +242,13 @@ def extract_heuristics(
 
     # Pay / fee -----------------------------------------------------------
     comp, pay_amount, currency, pay_quote = _extract_pay(clean)
+    if not comp:
+        # No figure was stated, but the post may still say what it pays:
+        # "TFP", "fee + royalty", "paid", "deferred".
+        qual = classify_compensation(clean)
+        if qual.known:
+            comp = qual.comp_type
+            pay_quote = qual.quote
     if comp:
         fields["comp_type"] = comp
     if pay_amount is not None:
@@ -301,6 +316,9 @@ def extract_heuristics(
         result.evidence["travel_covered"] = _snippet_around(clean, travel.group(0))
 
     usage = USAGE_RE.search(clean)
+    while usage and re.match(r"\s+reserved\b", clean[usage.end() :], re.I):
+        # "All rights reserved" is a footer notice, not a rights grab.
+        usage = USAGE_RE.search(clean, usage.end())
     if usage:
         text_value = usage.group(0).lower()
         if "perpetual" in text_value or "perpetuity" in text_value or "buyout" in text_value or "all rights" in text_value:
@@ -308,6 +326,52 @@ def extract_heuristics(
         else:
             fields["usage_rights"] = "limited"
         result.evidence["usage_rights"] = _snippet_around(clean, usage.group(0))
+
+    # Structured fact table -------------------------------------------------
+    # "Payment terms / Not paid", "Casting dates / to 26 November 2026" and
+    # "Wanted / 13-16 years old, M" are written by the poster, so they are more
+    # trustworthy than prose guesses.  They only fill what free text missed,
+    # except for the listing status, which is always authoritative.
+    facts = extract_facts(clean, base=base)
+    if facts.known:
+        # A fact table is written by the poster about this exact posting, so it
+        # wins over anything guessed from prose (or, worse, from a related card
+        # that the board pasted further down the page).
+        authoritative = {
+            "deadline",
+            "comp_type",
+            "pay_amount",
+            "currency",
+            "city",
+            "country",
+            "age_min",
+            "age_max",
+            "gender_presentation",
+        }
+        for name, value in facts.fields.items():
+            if name == "status":
+                continue
+            if name in authoritative:
+                fields[name] = value
+            else:
+                fields.setdefault(name, value)
+        if facts.fields.get("age_min") is not None or facts.fields.get("age_max") is not None:
+            # The table states one age rule; a half-range left over from prose
+            # (or a related card) would fabricate a ceiling that is not there.
+            fields["age_min"] = facts.fields.get("age_min")
+            fields["age_max"] = facts.fields.get("age_max")
+        for name, quote in facts.evidence.items():
+            if name in authoritative or name in {"status"}:
+                result.evidence[name] = quote
+            else:
+                result.evidence.setdefault(name, quote)
+        if facts.fields.get("deadline"):
+            fields["deadline_confidence"] = facts.fields.get("deadline_confidence", "high")
+        if facts.fields.get("status") == "expired":
+            fields["status"] = "expired"
+            result.evidence.setdefault("status", facts.evidence.get("status", ""))
+        if facts.fields.get("project_type") and fields.get("opportunity_type") in {None, "other"}:
+            fields["opportunity_type"] = _detect_type(str(facts.fields["project_type"]))
 
     # Contact -------------------------------------------------------------
     contact_channel, contact_value, contact_quote = _extract_contact(clean, url=url)
@@ -331,21 +395,61 @@ def extract_heuristics(
 # ---------------------------------------------------------------------------
 
 
+GENERIC_TITLE_WORDS = {
+    "home",
+    "casting",
+    "auditions",
+    "audition",
+    "jobs",
+    "welcome",
+    "photoshoots",
+    "music video auditions",
+    "teenage auditions",
+    "login",
+    "register",
+    "talents",
+    "menu",
+    "search",
+}
+
+
+def _is_weak_title(candidate: str) -> bool:
+    """True for nav labels, bare city names and other non-titles."""
+    lowered = normalize_ws(candidate).lower().strip(" -|·")
+    if not lowered or lowered in GENERIC_TITLE_WORDS:
+        return True
+    if len(lowered.split()) <= 2 and find_city(lowered) is not None:
+        return True
+    if re.fullmatch(r"[\d\W]+", lowered):
+        return True
+    return False
+
+
 def _clean_title(hint: str | None, body: str) -> str | None:
     candidates: list[str] = []
     if hint:
         candidates.append(normalize_ws(hint))
     if body:
+        # "Role: Lead Hero" is written by the poster; prefer it to page chrome.
+        role_line = re.search(r"^\s*role\s*[:\-]\s*(.{3,120})$", body, re.IGNORECASE | re.MULTILINE)
+        if role_line:
+            # Only used when the page heading is missing or generic.
+            candidates.append(normalize_ws(role_line.group(1)))
         for line in body.splitlines()[:20]:
             line = normalize_ws(line)
             if 3 <= len(line) <= 220 and not re.match(r"^(home|menu|login|sign in|about|contact|search)\b", line, re.I):
                 candidates.append(line)
+    fallback: str | None = None
     for candidate in candidates:
         candidate = re.sub(r"\s*[|•]\s*[^|•]{1,40}$", "", candidate).strip()
         candidate = re.sub(r"\s+-\s+[^-]{1,40}$", "", candidate).strip()
-        if len(candidate) >= 3 and not candidate.lower() in {"home", "casting", "auditions", "jobs", "welcome"}:
-            return candidate[:400]
-    return None
+        if len(candidate) < 3:
+            continue
+        if _is_weak_title(candidate):
+            fallback = fallback or candidate
+            continue
+        return candidate[:400]
+    return fallback[:400] if fallback else None
 
 
 def _detect_type(text: str) -> str:
@@ -366,13 +470,35 @@ def _detect_type(text: str) -> str:
 
 
 def _is_opportunity(text: str, opportunity_type: str) -> bool:
-    if opportunity_type != "other":
-        return True
-    lower = text.lower()
-    return bool(
-        re.search(r"\b(?:opportunit(?:y|ies)|hiring|required|wanted|call\s+for|open\s+call|apply)\b", lower)
-        and re.search(r"\b(?:actor|actress|artist|performer|crew|film|role|project)\b", lower)
+    """Decide whether the text is a call to apply, not just casting chatter.
+
+    A non-"other" type alone is not enough: a news headline can mention
+    casting, festivals or crew and still be unactionable.  Require an explicit
+    call (casting call / looking for / required / apply / send self tape ...)
+    or, at minimum, both a real deadline and a direct contact.
+    """
+    clean = normalize_text(text or "")
+    lower = clean.lower()
+    direct_call = bool(DIRECT_CALL_RE.search(clean))
+    has_contact = bool(extract_emails(clean) or extract_phones(clean))
+    has_deadline = bool(
+        re.search(
+            r"\b(?:deadline|last\s+date(?:\s+to\s+apply)?|apply\s+(?:by|before)|"
+            r"submit\s+(?:by|before)|closing\s+date|applications?\s+close|auditions?\s+on)\b",
+            lower,
+        )
     )
+    if opportunity_type == "festival":
+        return looks_like_festival(clean) and (direct_call or has_deadline)
+    if opportunity_type == "other":
+        return direct_call and bool(
+            re.search(r"\b(?:actor|actress|artist|performer|crew|film|role|project|intern|dancer|model|singer|voice)\b", lower)
+        )
+    if direct_call:
+        return True
+    # No explicit verb, but a real deadline plus a way to respond is still an
+    # actionable call (short WhatsApp/Instagram-style casting notices).
+    return has_deadline and has_contact
 
 
 def _detect_country(text: str) -> str | None:
@@ -480,6 +606,21 @@ def _currency_from(text: str) -> str | None:
     return None
 
 
+def _looks_like_age_context(text: str, start: int, end: int) -> bool:
+    """True when the matched number belongs to an age range, not to pay.
+
+    Listing pages interleave many posts; "Looking for actresses age 24-45" must
+    not turn into a pay figure of 24.
+    """
+    clause = _clause(text, start, end)
+    return bool(
+        re.search(r"\b(?:age|aged|age\s+group|age\s+range)\s*[:\-]?\s*\d{1,2}\b", clause, re.I)
+        or re.search(r"\b\d{1,2}\s*(?:-|–|—|to)\s*\d{1,2}\s*(?:years?|yrs?)\b", clause, re.I)
+        or re.search(r"\b(?:years?|yrs?)\s*old\b", clause, re.I)
+        or re.search(r"\b(?:between|age)\b[^.\n]{0,20}\d{1,2}\s*(?:-|–|to)\s*\d{1,2}\b", clause, re.I)
+    )
+
+
 def _extract_pay(text: str) -> tuple[str | None, float | None, str | None, str | None]:
     unpaid = UNPAID_RE.search(text)
     if unpaid:
@@ -519,7 +660,24 @@ def _extract_pay(text: str) -> tuple[str | None, float | None, str | None, str |
                 re.I,
             ):
                 continue
+            if _looks_like_age_context(
+                text,
+                window_start + amount_match.start(),
+                window_start + amount_match.end(),
+            ):
+                continue
+            # A bare number only counts as pay when its own clause talks about
+            # pay; otherwise "Required 5 female artists" becomes a fee of 5.
+            has_currency = bool(_currency_from(amount_match.group(0)))
+            if not has_currency and not PAY_CONTEXT.search(context):
+                continue
             amount = _amount(amount_match.group(1), amount_match.group(2))
+            if amount is not None and 1900 <= amount <= 2100 and not has_currency:
+                # A bare four-digit year is not a fee.
+                continue
+            if amount is not None and not has_currency and amount < 100:
+                # Counts ("5 female artists", "3 slots") are not pay figures.
+                continue
             if amount is not None and amount > 0:
                 pay_amount = amount
                 currency = _currency_from(window) or "INR"
@@ -537,6 +695,8 @@ def _extract_pay(text: str) -> tuple[str | None, float | None, str | None, str |
                 context,
                 re.I,
             ):
+                continue
+            if _looks_like_age_context(text, match.start(), match.end()):
                 continue
             amount = _amount(match.group(1), match.group(2))
             if amount and amount > 0:
@@ -609,7 +769,11 @@ def _extract_contact(text: str, *, url: str | None) -> tuple[str | None, str | N
 
     whatsapp = re.search(r"\b(?:whats\s?app|wa\.me|wa\.link)\b", text, re.I)
     telegram = re.search(r"\b(?:telegram|t\.me/)\b", text, re.I)
-    instagram = re.search(r"\b(?:instagram|insta\b|@[A-Za-z0-9._]{2,30})\b", text, re.I)
+    # A bare "Instagram" is footer chrome, and "@gmail.com" is an email.  Only an
+    # instagram.com link or a standalone @handle counts.
+    instagram = re.search(r"instagram\.com/[A-Za-z0-9_.]{2,30}", text, re.I) or re.search(
+        r"(?<![\w@.])@[A-Za-z0-9_][A-Za-z0-9._]{1,29}(?!\.[A-Za-z]{2,})", text
+    )
     dm = re.search(r"\b(?:dm|direct\s+message)\b", text, re.I)
 
     if emails:
@@ -617,7 +781,17 @@ def _extract_contact(text: str, *, url: str | None) -> tuple[str | None, str | N
         return "email", email, _snippet_around(text, email)
     if whatsapp and phones:
         return "whatsapp", phones[0], _snippet_around(text, whatsapp.group(0))
-    form_url = next((candidate for candidate in urls if FORM_URL_RE.search(candidate)), None)
+    from ..normalize import canonicalize_url
+
+    own_url = canonicalize_url(url) if url else None
+    form_url = next(
+        (
+            candidate
+            for candidate in urls
+            if FORM_URL_RE.search(candidate) and canonicalize_url(candidate) != own_url
+        ),
+        None,
+    )
     if form_url:
         return "form", form_url, None
     if phones:
@@ -633,5 +807,7 @@ def _extract_contact(text: str, *, url: str | None) -> tuple[str | None, str | N
     if dm:
         return "dm", "DM", _snippet_around(text, dm.group(0))
     if url and FORM_URL_RE.search(url):
-        return "form", url, None
+        # The page itself is the application form; report the channel without
+        # pretending the page URL is contact information.
+        return "form", None, None
     return None, None, None

@@ -443,6 +443,9 @@ def detect_languages(text: str) -> list[str]:
     devanagari = len(re.findall(r"[\u0900-\u097F]", text))
     latin = len(re.findall(r"[A-Za-z]", text))
     tokens = set(text_tokens(text))
+    # Romanised Hindi function words only.  English casting vocabulary ("role",
+    # "audition", "casting", "contact") appears on almost every Indian post and
+    # must not be enough to label a page Hinglish.
     hinglish_markers = {
         "hai",
         "hain",
@@ -456,13 +459,18 @@ def detect_languages(text: str) -> list[str]:
         "karna",
         "aap",
         "hum",
-        "role",
-        "audition",
-        "casting",
         "bhejo",
-        "contact",
+        "bhejna",
         "paisa",
         "paise",
+        "kya",
+        "raha",
+        "rahe",
+        "hoga",
+        "bhi",
+        "kyun",
+        "milna",
+        "milega",
     }
     has_hinglish = len(tokens & hinglish_markers) >= 2 and latin > 0
     langs: list[str] = []
@@ -602,5 +610,248 @@ def is_probably_not_opportunity(text: str) -> bool:
     )
     positive = looks_like_casting(text) or looks_like_festival(text) or looks_like_crew(text)
     if any(token in lower for token in negative) and not positive:
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Opportunity vs news classification
+# ---------------------------------------------------------------------------
+
+# An actual call an applicant can act on.  News articles can contain the word
+# "casting" or "audition" without ever asking anyone to apply.
+DIRECT_CALL_RE = re.compile(
+    r"\b(?:"
+    r"casting\s+call|cast\s+call|open\s+call|audition\s+call|call\s+for\s+(?:entries|submissions|applicants|actors|actresses|artists|crew)"
+    r"|now\s+casting|we\s+are\s+casting|currently\s+casting|casting\s+(?:for|an?\s+actor|actress|artists?)"
+    r"|looking\s+for|seeking\s+(?:an?\s+)?(?:actor|actress|artist|performer|model|dancer|singer|crew|dop|voice)"
+    r"|(?:actor|actress|artist|performer|crew|dop|dancer|model|singer|voice\s+artist|extra)s?\s+(?:required|needed|wanted|urgently\s+required)"
+    r"|(?:required|needed|wanted)\s*[:\-]"
+    r"|urgent(?:ly)?\s+(?:required|needed)"
+    r"|apply\s+(?:now|here|at|by|before|through|via|on|with)|send\s+(?:a|an|the|your|us)"
+    r"|self[\s-]?tape|walk[\s-]?in|audition\s+(?:on|at|in|for|by|date)"
+    r"|dm\s+(?:us|me)|inbox\s+(?:us|me)|whatsapp\s+(?:us|me|on)|contact\s+(?:us|me|at|on)"
+    r"|submit\s+(?:your|by|before|the)|register\s+(?:now|at|here|by)"
+    r"|ki\s+audition|casting\s+ke\s+liye|रोल\s+के\s+लिए|ऑडिशन|कास्टिंग"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Casting-specific asks.  Generic page chrome ("Contact Us", "Submit an ad")
+# must not make a news article look actionable, so news filtering only trusts
+# this narrower pattern.
+CASTING_CALL_RE = re.compile(
+    r"\b(?:"
+    r"casting\s+call|cast\s+call|open\s+call|audition\s+call|call\s+for\s+(?:entries|submissions|applicants|actors|actresses|artists|crew)"
+    r"|now\s+casting|we\s+are\s+casting|currently\s+casting|casting\s+(?:for|an?\s+actor|actress|artists?)"
+    r"|looking\s+for\s+(?:an?\s+)?(?:actor|actress|artist|performer|model|dancer|singer|crew|dop|voice|talent|extra)(?:e?s)?"
+    r"|looking\s+for\s+(?:\w+[,\s&]{1,12}){0,3}(?:actor|actress|model|dancer|artist|performer|talent)(?:e?s)?"
+    r"|(?:actor|actress|artist|performer|crew|dop|dancer|model|singer|voice\s+artist|extra)(?:e?s)?\s+(?:required|needed|wanted)"
+    r"|self[\s-]?tape|audition\s+(?:on|at|in|for|by|date)|casting\s+director"
+    r"|रोल\s+के\s+लिए|ऑडिशन|कास्टिंग"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Hard news / press-release language.  When one of these is present and there
+# is no direct call, the document is an article, not an opportunity.
+NEWS_HARD_PHRASES = (
+    "announces",
+    "announced",
+    "reveals",
+    "revealed",
+    "reportedly",
+    "rumour",
+    "rumor",
+    "rumors",
+    "rumours",
+    "trailer",
+    "teaser",
+    "box office",
+    "first look",
+    "review",
+    "recap",
+    "obituary",
+    "dead at",
+    "dies at",
+    "died at",
+    "tribute",
+    "election",
+    "senate",
+    "gunman",
+    "killing",
+    "tax credit",
+    "tax credits",
+    "jury",
+    "finalists",
+    "selects",
+    "selected",
+    "winners",
+    "nominations",
+    "awards ceremony",
+)
+
+# Softer editorial language that only matters when it piles up.
+NEWS_WEAK_PHRASES = (
+    "according to",
+    "sources say",
+    "exclusive",
+    "interview",
+    "opens up",
+    "slams",
+    "criticizes",
+    "denies",
+    "confirms",
+    "report",
+    "breaking",
+    "opinion",
+    "editorial",
+    "explained",
+    "why ",
+    "how to",
+    "tips",
+    "guide",
+    "top 10",
+    "recap",
+    "photos",
+    "video",
+)
+
+# News/trade-press hosts.  A casting call published on a newspaper site still
+# passes when it contains a direct call, so this only blocks article pages.
+NEWS_DOMAIN_SUFFIXES = (
+    "washingtonpost.com",
+    "nytimes.com",
+    "cnn.com",
+    "bbc.com",
+    "bbc.co.uk",
+    "reuters.com",
+    "apnews.com",
+    "theguardian.com",
+    "variety.com",
+    "hollywoodreporter.com",
+    "deadline.com",
+    "indiewire.com",
+    "collider.com",
+    "screenrant.com",
+    "ew.com",
+    "people.com",
+    "pagesix.com",
+    "aol.com",
+    "yahoo.com",
+    "msn.com",
+    "cbsnews.com",
+    "nbcnews.com",
+    "abcnews.go.com",
+    "foxnews.com",
+    "usatoday.com",
+    "latimes.com",
+    "nypost.com",
+    "dailymail.co.uk",
+    "thesun.co.uk",
+    "mirror.co.uk",
+    "indiatimes.com",
+    "hindustantimes.com",
+    "ndtv.com",
+    "thehindu.com",
+    "indianexpress.com",
+    "firstpost.com",
+    "news18.com",
+    "zeenews.india.com",
+    "abplive.com",
+    "filmfare.com",
+    "bollywoodhungama.com",
+    "koimoi.com",
+    "pinkvilla.com",
+    "mid-day.com",
+    "tellychakkar.com",
+    "ottplay.com",
+    "deccanherald.com",
+    "telegraphindia.com",
+    "scmp.com",
+    "forbes.com",
+    "bloomberg.com",
+    "cnbc.com",
+    "explorersweb.com",
+    "cartoonbrew.com",
+    "animenewsnetwork.com",
+    "heraldpubs.com",
+    "salisburypost.com",
+    "mississippifreepress.org",
+    "pajiba.com",
+    "finalweapon.net",
+    "wfmd.com",
+    "justjared.com",
+    "realtor.com",
+    "charlotteobserver.com",
+    "isthmus.com",
+    "theindependentcritic.com",
+    "aljazeera.com",
+    "dawn.com",
+    "tribune.com.pk",
+    "gulfnews.com",
+    "khaleejtimes.com",
+)
+
+DEADLINE_PHRASE_RE = re.compile(
+    r"\b(?:deadline|last\s+date(?:\s+to\s+apply)?|apply\s+(?:by|before)|submit\s+(?:by|before)|"
+    r"closing\s+date|applications?\s+close|auditions?\s+on)\b",
+    re.IGNORECASE,
+)
+
+
+def is_news_url(url: str | None) -> bool:
+    """True when the URL host is a newspaper/trade-press site."""
+    if not url:
+        return False
+    try:
+        host = (urlsplit(url).hostname or "").lower()
+    except ValueError:
+        return False
+    if host.startswith("www."):
+        host = host[4:]
+    return any(host == suffix or host.endswith("." + suffix) for suffix in NEWS_DOMAIN_SUFFIXES)
+
+
+def looks_like_news_article(text: str, url: str | None = None) -> bool:
+    """Reject news/press coverage that merely mentions casting.
+
+    The radar exists to surface calls an actor can act on.  A headline such as
+    "James Bond casting rumours heat up" contains the word *casting* but has no
+    audition, deadline or way to apply, so it must never become an opportunity.
+    """
+    clean = normalize_ws(text or "")
+    lower = clean.lower()
+    if not lower:
+        return False
+
+    casting_call = bool(CASTING_CALL_RE.search(clean))
+    has_contact = bool(EMAIL_RE.search(clean) or IN_PHONE_RE.search(clean))
+    has_deadline = bool(DEADLINE_PHRASE_RE.search(clean))
+
+    # Newspaper / trade-press pages are not casting notices.  Even an "open
+    # casting call" mentioned in an article is past-tense coverage unless the
+    # page also carries a real deadline to apply by.  A byline e-mail is not a
+    # way to apply, so contact alone is not enough here.
+    if is_news_url(url) and not (casting_call and has_deadline):
+        return True
+
+    # "Open call finalists", "jury announced", "showreel tips" are coverage of
+    # a finished process or general advice, not a call to apply.
+    if re.search(r"\b(?:finalists?|winners?|shortlist(?:ed)?)\b", lower) and re.search(
+        r"\b(?:open\s+call|audition|casting|call\s+for\s+entries)\b", lower
+    ):
+        return True
+
+    hard = sum(1 for phrase in NEWS_HARD_PHRASES if phrase in lower)
+    weak = sum(1 for phrase in NEWS_WEAK_PHRASES if phrase in lower)
+
+    if casting_call:
+        # A genuine casting call keeps passing unless it reads like a write-up
+        # with several news markers and no deadline/contact of its own.
+        return hard >= 3 and not (has_contact or has_deadline)
+    if hard >= 1:
+        return True
+    if weak >= 3:
         return True
     return False
