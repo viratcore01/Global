@@ -66,14 +66,15 @@ sources:
   #   "short film" casting (Delhi OR Noida)
   - name: "Google Alerts (my queries)"
     type: google_alerts
-    url: "https://www.google.com/alerts/feeds/REPLACE_ACCOUNT_ID/REPLACE_ALERT_ID"
+    url: "https://www.google.com/alerts/feeds/17602279216790391852/12339653652275347045"
     enabled: false
     tier: 2
     poll_interval_minutes: 30
     assume_opportunity: true
     config:
       max_entries: 40
-      urls: []            # extra feed URLs, one per additional alert
+      urls:
+        - "https://www.google.com/alerts/feeds/17602279216790391852/15555007301314017485"
     notes: >
       Personal Google Alerts on RSS. Nothing is scraped: Google hands you the
       feed. One alert per query; paste every feed URL here.

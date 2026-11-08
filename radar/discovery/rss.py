@@ -56,11 +56,16 @@ def discover_rss(ctx: DiscoveryContext) -> DiscoveryResult:
         urls = [urls]
     urls = [source.get("url"), *urls]
     max_entries = int(source.get("config", {}).get("max_entries") or 60)
+    respect_robots = source.get("respect_robots")
+    if respect_robots is None:
+        respect_robots = source.get("config", {}).get("respect_robots")
+    if respect_robots is None and (source.get("type") == "google_alerts" or "google.com/alerts/feeds" in str(source.get("url") or "")):
+        respect_robots = False
     items: list[DiscoveryItem] = []
     errors: list[str] = []
     status: int | None = None
     for feed_url in [url for url in urls if url]:
-        response = ctx.fetcher.fetch(feed_url)
+        response = ctx.fetcher.fetch(feed_url, respect_robots=respect_robots)
         status = response.status or status
         if not response.ok:
             errors.append(f"{feed_url}: {response.error or response.status}")
@@ -74,6 +79,14 @@ def discover_rss(ctx: DiscoveryContext) -> DiscoveryResult:
             continue
         for entry in feed.entries[:max_entries]:
             link = (entry.get("link") or "").strip()
+            if "google.com/url" in link and "url=" in link:
+                from urllib.parse import parse_qsl, urlsplit
+                try:
+                    q = dict(parse_qsl(urlsplit(link).query))
+                    if q.get("url"):
+                        link = q["url"].strip()
+                except Exception:
+                    pass
             text = _entry_text(entry)
             title = normalize_ws(entry.get("title") or "")
             if not title and text:

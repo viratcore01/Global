@@ -19,7 +19,7 @@ from ..normalize import canonicalize_url, domain_from_url
 from ..util import get_logger
 from .browser import BrowserResult, browser_available, fetch_with_browser
 from .rate_limit import ConcurrencyGate, DomainRateLimiter
-from .robots import RobotsCache
+from .robots import RobotsCache, RobotsDecision
 
 log = get_logger(__name__)
 
@@ -162,6 +162,7 @@ class HttpFetcher:
         strategy: str | None = None,
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
+        respect_robots: bool | None = None,
     ) -> FetchResult:
         started = time.monotonic()
         canonical = canonicalize_url(url)
@@ -171,7 +172,10 @@ class HttpFetcher:
         if not allowed:
             return FetchResult(url=url, final_url=url, error=reason, robots_reason=reason)
 
-        robots = self.robots.check(canonical)
+        if respect_robots is False:
+            robots = RobotsDecision(True, "robots bypassed", 0.0)
+        else:
+            robots = self.robots.check(canonical)
         if not robots.allowed:
             return FetchResult(
                 url=url,
