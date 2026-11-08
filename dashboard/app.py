@@ -8,8 +8,15 @@ change a decision. Labeling stays in the CLI / ntfy buttons on purpose.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+# Streamlit Cloud runs this file as a script; ensure the repo root (which
+# contains the `radar` package) is importable before local imports.
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 import pandas as pd
 import streamlit as st
