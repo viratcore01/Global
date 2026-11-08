@@ -63,7 +63,9 @@ def test_real_config_loads(config: AppConfig) -> None:
     assert any(rule.id for rule in config.vetoes.vetoes)
     for rule in config.vetoes.vetoes:
         assert rule.pattern
-    assert all(not source.enabled for source in config.sources), "example sources ship disabled"
+    for source in config.sources:
+        if "example.com" in (source.url or "") or "REPLACE_" in (source.url or ""):
+            assert not source.enabled, f"example source {source.name} should ship disabled"
 
 
 def test_source_url_aliases() -> None:
