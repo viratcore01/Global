@@ -180,10 +180,3 @@ sources:
   notes: >
     Only servers where an admin invited the bot. Needs the Message Content
     intent. Never use a user token.
-
-- name: "Demo fixtures"
-  type: demo
-  enabled: false
-  tier: 3
-  poll_interval_minutes: 1440
-  notes: "Local fixtures for smoke tests and the seed-demo command. No network."
