@@ -1,0 +1,52 @@
+name: Opportunity Radar Cloud Runner
+
+on:
+  schedule:
+    # 02:30 UTC = 08:00 AM IST (Daily Morning Scan + Digest)
+    - cron: '30 2 * * *'
+    # 14:30 UTC = 08:00 PM IST (Evening Scan)
+    - cron: '30 14 * * *'
+  workflow_dispatch: # Allows manual run button in GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  scan-and-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install streamlit
+
+      - name: Sync Sources and Run Radar Scan
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'radar-fw85gk8xh3ka3iiksua8sukc' }}
+          NTFY_REPLY_TOPIC: ${{ secrets.NTFY_REPLY_TOPIC || 'radar-yatft6vi7tppvh32g2kses3c' }}
+          RADAR_REPLY_SECRET: ${{ secrets.RADAR_REPLY_SECRET || 'dUjOMZMiVLacc52ngQM9xqPTsdjgLOWtdQtY9hzmtO0' }}
+          RADAR_RESPECT_ROBOTS: 'true'
+          RADAR_TIMEZONE: 'Asia/Kolkata'
+        run: |
+          mkdir -p data
+          python -m radar init
+          python -m radar sources sync
+          python -m radar run --force --digest
+
+      - name: Save Updated Opportunities
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f data/radar.db
+          git commit -m "Automated radar scan update [skip ci]" || echo "No new opportunities to commit"
+          git push origin main

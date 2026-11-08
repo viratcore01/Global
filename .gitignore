@@ -15,8 +15,9 @@ env/
 .env.*
 !.env.example
 
-# Runtime state (database, backups, logs, reply secret, demo/scratch datasets)
-data/
+# Runtime state (keep radar.db tracked so Streamlit Cloud & GitHub Actions share it)
+data/*
+!data/radar.db
 
 # Tooling
 .pytest_cache/
