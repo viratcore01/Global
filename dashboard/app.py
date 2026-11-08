@@ -234,9 +234,22 @@ def page_opportunities(config: AppConfig, db: Database) -> None:
                 "status": row.get("status"),
                 "risk": risk_badge(row.get("risk_flags")),
                 "source": row.get("source_name") or "—",
+                "source_link": row.get("canonical_url"),
             }
         )
-    st.dataframe(pd.DataFrame(table), **FULL_WIDTH, hide_index=True)
+    frame = pd.DataFrame(table)
+    if "source_link" in frame.columns:
+        frame["source_link"] = frame["source_link"].replace({None: None, "": None})
+    st.dataframe(
+        frame,
+        **FULL_WIDTH,
+        hide_index=True,
+        column_config={
+            "source_link": st.column_config.LinkColumn(
+                "source link", display_text="Open", help="Open the source in a new tab"
+            ),
+        },
+    )
     st.caption(f"{len(table)} row(s). Use the Detail tab for one opportunity.")
 
 
@@ -266,7 +279,8 @@ def page_detail(config: AppConfig, db: Database) -> None:
         if opportunity.get("contact_value"):
             st.write(f"**Contact:** {opportunity['contact_value']}")
         if opportunity.get("canonical_url"):
-            st.write(f"**Source:** {opportunity['canonical_url']}")
+            url = opportunity["canonical_url"]
+            st.markdown(f"**Source:** [{url}]({url})")
     with right:
         st.metric("Pay", money(opportunity.get("pay_amount"), opportunity.get("currency")))
         st.write(f"**Pay type:** {opportunity.get('comp_type') or 'unknown'}")
@@ -315,21 +329,27 @@ def page_detail(config: AppConfig, db: Database) -> None:
         members = repo.cluster_members(db, int(cluster_id))
         if len(members) > 1:
             st.subheader(f"Cluster #{cluster_id} — {len(members)} source(s)")
+            cluster_frame = as_frame(
+                [
+                    {
+                        "id": m.get("id"),
+                        "source": m.get("source_name"),
+                        "score": m.get("score"),
+                        "url": m.get("canonical_url"),
+                        "first_seen": m.get("first_seen_at"),
+                    }
+                    for m in members
+                ]
+            )
+            if "url" in cluster_frame.columns:
+                cluster_frame["url"] = cluster_frame["url"].replace("—", None)
             st.dataframe(
-                as_frame(
-                    [
-                        {
-                            "id": m.get("id"),
-                            "source": m.get("source_name"),
-                            "score": m.get("score"),
-                            "url": m.get("canonical_url"),
-                            "first_seen": m.get("first_seen_at"),
-                        }
-                        for m in members
-                    ]
-                ),
+                cluster_frame,
                 **FULL_WIDTH,
                 hide_index=True,
+                column_config={
+                    "url": st.column_config.LinkColumn("url", display_text="Open"),
+                },
             )
 
     st.caption(
@@ -377,20 +397,26 @@ def page_quarantine(config: AppConfig, db: Database) -> None:
     if not rows:
         st.success("Quarantine is empty.")
         return
+    quarantine_frame = as_frame(
+        rows,
+        {
+            "id": "id",
+            "created_at": "created",
+            "source_name": "source",
+            "url": "url",
+            "errors": "errors",
+            "raw_document_id": "raw id",
+        },
+    )
+    if "url" in quarantine_frame.columns:
+        quarantine_frame["url"] = quarantine_frame["url"].replace("—", None)
     st.dataframe(
-        as_frame(
-            rows,
-            {
-                "id": "id",
-                "created_at": "created",
-                "source_name": "source",
-                "url": "url",
-                "errors": "errors",
-                "raw_document_id": "raw id",
-            },
-        ),
+        quarantine_frame,
         **FULL_WIDTH,
         hide_index=True,
+        column_config={
+            "url": st.column_config.LinkColumn("url", display_text="Open"),
+        },
     )
 
 
